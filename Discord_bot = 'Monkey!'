@@ -1,0 +1,243 @@
+import random
+import string
+import discord
+from discord.ext import commands
+
+intents = discord.Intents.default()
+intents.message_content = True
+bot = commands.Bot(command_prefix='$', intents=intents)
+
+
+user_profiles = {}
+
+
+polls = {}
+
+
+fun_facts = [
+    "enes hocam en karizmatik yazılımcıdır",
+    "enes hocamın bastığı tuşda gül biter",
+    "Buglarıma debug olur musun <3",
+]
+
+def get_character_set(mode):
+    if mode == 0:
+        return string.ascii_letters
+    elif mode == 1:
+        return string.ascii_letters + string.digits
+    elif mode == 2:
+        return string.ascii_letters + string.digits + string.punctuation
+    else:
+        print("Geçersiz mod seçildi. Varsayılan olarak tüm karakterler kullanılacak.")
+        return string.ascii_letters + string.digits + string.punctuation
+
+def generate_password(length, characters):
+    return ''.join(random.choice(characters) for _ in range(length))
+
+def password_strength(password):
+    length = len(password)
+    if length < 8:
+        return "Zayıf"
+    elif length < 12:
+        return "Orta"
+    elif (any(char in string.ascii_lowercase for char in password) and
+          any(char in string.ascii_uppercase for char in password) and
+          any(char in string.digits for char in password) and
+          any(char in string.punctuation for char in password)):
+        return "Güçlü"
+    else:
+        return "Orta"
+
+@bot.event
+async def on_ready():
+    print(f'{bot.user} olarak giriş yaptık.')
+
+
+@bot.command(name='profil')
+async def profil(ctx):
+    user_id = ctx.author.id
+    if user_id not in user_profiles:
+        user_profiles[user_id] = {'skor': 0}
+    await ctx.send(f"{ctx.author.name}, Skorunuz: {user_profiles[user_id]['skor']}")
+
+@bot.command(name='skorartir')
+async def skorartir(ctx, miktar: int):
+    user_id = ctx.author.id
+    if user_id not in user_profiles:
+        user_profiles[user_id] = {'skor': 0}
+    user_profiles[user_id]['skor'] += miktar
+    await ctx.send(f"{ctx.author.name}, Skorunuz {miktar} puan arttı. Toplam Skorunuz: {user_profiles[user_id]['skor']}")
+
+@bot.command(name='skortablosu')
+async def skortablosu(ctx):
+    leaderboard = sorted(user_profiles.items(), key=lambda x: x[1]['skor'], reverse=True)
+    leaderboard_message = "\n".join([f"{bot.get_user(user[0]).name}: {user[1]['skor']} puan" for user in leaderboard])
+    await ctx.send(f"Skor Tablosu:\n{leaderboard_message}")
+
+
+@bot.command(name='anket')
+async def anket(ctx, soru: str, *seçenekler):
+    if len(seçenekler) < 2:
+        await ctx.send("Anket için en az iki seçenek belirtmelisiniz.")
+        return
+
+    poll_id = len(polls) + 1
+    polls[poll_id] = {
+        "soru": soru,
+        "seçenekler": list(seçenekler),
+        "oylar": [0] * len(seçenekler)
+    }
+
+    seçenek_listesi = "\n".join([f"{i+1}. {seçenek}" for i, seçenek in enumerate(seçenekler)])
+    await ctx.send(f"Anket #{poll_id}\n{soru}\n{seçenek_listesi}\nOy vermek için: `$oy {poll_id} [seçenek numarası]`")
+
+@bot.command(name='oy')
+async def oy(ctx, poll_id: int, seçenek_numarası: int):
+    if poll_id not in polls:
+        await ctx.send("Geçersiz anket numarası.")
+        return
+
+    if seçenek_numarası < 1 or seçenek_numarası > len(polls[poll_id]["seçenekler"]):
+        await ctx.send("Geçersiz seçenek numarası.")
+        return
+
+    polls[poll_id]["oylar"][seçenek_numarası - 1] += 1
+    await ctx.send("Oyunuz kaydedildi!")
+
+@bot.command(name='anketsonucu')
+async def anketsonucu(ctx, poll_id: int):
+    if poll_id not in polls:
+        await ctx.send("Geçersiz anket numarası.")
+        return
+
+    anket = polls[poll_id]
+    sonuç = "\n".join([f"{seçenek}: {oy} oy" for seçenek, oy in zip(anket["seçenekler"], anket["oylar"])])
+    await ctx.send(f"Anket #{poll_id} Sonuçları\n{anket['soru']}\n{sonuç}")
+
+
+@bot.command(name='tahmin')
+async def tahmin(ctx, tahmin: int):
+    sayı = random.randint(1, 10)
+    if tahmin == sayı:
+        await ctx.send(f"Tebrikler! Doğru tahmin: {sayı}")
+    else:
+        await ctx.send(f"Maalesef, yanlış tahmin. Doğru sayı: {sayı}")
+
+
+@bot.command(name='muzik')
+async def muzik(ctx):
+    await ctx.send("Müzik çalma özelliği şu an kullanılamıyor.")
+
+
+@bot.command(name='gercek')
+async def gercek(ctx):
+    fact = random.choice(fun_facts)
+    await ctx.send(f"Eğlenceli Gerçek: {fact}")
+
+@bot.command(name='komutlar')
+async def komutlar(ctx):
+    await ctx.send(
+        "$merhaba - Selamla\n"
+        "$bye - Elveda\n"
+        "$passwd <mode> <length> - Şifre oluştur\n"
+        "$yazitura - Yazı Tura\n"
+        "$profil - Kullanıcı profili\n"
+        "$skorartir <miktar> - Skor artır\n"
+        "$skortablosu - Skor tablosu\n"
+        "$anket <soru> <seçenekler> - Anket başlat\n"
+        "$oy <anket_id> <seçenek_numarası> - Ankete oy ver\n"
+        "$anketsonucu <anket_id> - Anket sonucu\n"
+        "$tahmin <sayı> - Sayı tahmin et\n"
+        "$muzik - Müzik çal\n"
+        "$gercek - Rastgele gerçek öğren\n"
+        "$basla\n"
+        "$geri_donusum\n"
+        "$atik_azaltma\n"
+        "$sor plastik\n"
+        "$sor enerji tasarrufu\n"
+    )
+
+@bot.command(name='passwd')
+async def passwd(ctx, mode: int, length: int):
+    if mode not in [0, 1, 2]:
+        await ctx.send("Geçersiz mod. Lütfen 0, 1 veya 2 seçin.")
+        return
+    if length <= 0:
+        await ctx.send("Şifre uzunluğu pozitif bir sayı olmalıdır.")
+        return
+
+    characters = get_character_set(mode)
+    password = generate_password(length, characters)
+    strength = password_strength(password)
+    await ctx.send(f"Oluşturulan şifre: {password}\nŞifre gücü: {strength}")
+
+@bot.command(name='yazitura')
+async def yazitura(ctx):
+    result = random.choice(["Yazı", "Tura"])
+    await ctx.send(f"Sonuç: {result}")
+
+#geri donusumle alakali kisim
+
+@bot.command()
+async def basla(ctx):
+    embed = discord.Embed(
+        title="Kirlilikle Mücadele Botu",
+        description="Merhaba! Ben Kirlilikle Mücadele Botu. Sorularınızı sorabilirsiniz!",
+        color=0x00ff00
+    )
+    embed.set_image(url="https://ceysangerikazanim.com/wp-content/uploads/2022/02/geri-donusum-ile-ilgili-sloganlar.jpg")  
+    await ctx.send(embed=embed)
+
+
+@bot.command()
+async def geri_donusum(ctx):
+    embed = discord.Embed(
+        title="Geri Dönüşüm",
+        description="Geri dönüşüm, atık malzemelerin yeniden kullanımı için işlenmesi sürecidir. Plastikleri, kağıtları ve metalleri geri dönüştürmek çevre için çok faydalıdır!",
+        color=0x00ff00
+    )
+    embed.set_image(url="https://st2.depositphotos.com/1829203/5646/v/450/depositphotos_56463111-stock-illustration-recycling-bins-for-paper-plastic.jpg")  
+    await ctx.send(embed=embed)
+
+
+@bot.command()
+async def atik_azaltma(ctx):
+    embed = discord.Embed(
+        title="Atık Azaltma",
+        description="Atık azaltmanın en iyi yolları arasında tekrar kullanılabilir ürünler kullanmak, fazla ambalajdan kaçınmak ve geri dönüştürülebilir malzemeler kullanmak yer alır.",
+        color=0x00ff00
+    )
+    embed.set_image(url="https://i.ytimg.com/vi/UBZZlzEvPiM/maxresdefault.jpg")  
+    await ctx.send(embed=embed)
+
+
+@bot.command()
+async def sor(ctx, *, soru):
+    if "plastik" in soru.lower():
+        embed = discord.Embed(
+            title="Plastik Geri Dönüşüm",
+            description="Plastikleri geri dönüştürmek için yerel geri dönüşüm merkezlerine başvurabilirsiniz. Tek kullanımlık plastiklerden kaçının!",
+            color=0x00ff00
+        )
+        embed.set_image(url="https://kalkangeridonusum.com/wp-content/uploads/2021/02/plastik-atik.jpg")  
+        await ctx.send(embed=embed)
+    elif "enerji tasarrufu" in soru.lower():
+        embed = discord.Embed(
+            title="Enerji Tasarrufu",
+            description="Enerji tasarrufu yapmak için enerji verimli ampuller kullanabilir, cihazları kullanmadığınızda kapatabilir ve mümkünse güneş enerjisi kullanabilirsiniz.",
+            color=0x00ff00
+        )
+        embed.set_image(url="https://blog.ofix.com/wp-content/uploads/2019/10/aydinlatmada_tasarruf_yontemleri_ofix_blog.jpg")  
+        await ctx.send(embed=embed)
+    else:
+        embed = discord.Embed(
+            title="Bilgi Bulunamadı",
+            description="Bu konuda spesifik bir bilgiye sahip değilim, ancak genel olarak geri dönüşüm ve atık azaltma konusunda çok şey yapılabilir!",
+            color=0x00ff00
+        )
+        embed.set_image(url="https://st3.depositphotos.com/1857171/33342/i/950/depositphotos_333426814-stock-photo-i-dont-know-who-cares.jpg")  
+        await ctx.send(embed=embed)
+
+
+
+bot.run("bot_token")
